@@ -1,21 +1,6 @@
 import random
 from collections.abc import Callable
-
-
-def mutation(population, mut_prob, possible_genes):
-    mutated_population = []
-
-    for individual in population:
-        mutated_individual = ""
-        for trait in individual:
-            if random.random() < mut_prob:
-                possible_genes = possible_genes.remove(trait)
-                mutated_individual += random.choice(possible_genes)
-            else:
-                mutated_individual += trait
-        mutated_population.append(mutated_individual)
-
-    return mutated_population
+from individual import Individual
 
 
 def crossover(
@@ -48,11 +33,37 @@ def crossover(
     return new_population
 
 
+def selection(self, population, scores, scaling_const=0):
+    intervals_prob = []
+    new_population = []
+    last_score = 0
+
+    for score in scores:
+        intervals_prob.append(score + scaling_const + last_score)
+        last_score += score + scaling_const
+
+    for _ in range(len(population)):
+        drawn_num = random.randint(0, last_score)
+        left_end = intervals_prob[0]
+
+        if drawn_num <= left_end:
+            new_population.append(population[0])
+
+        else:
+            for i in range(1, len(population)):
+                if drawn_num > left_end and drawn_num <= intervals_prob[i]:
+                    new_population.append(population[i])
+                    break
+                left_end = intervals_prob[i]
+
+    return new_population
+
+
 class gaSolver:
     def __init__(
         self,
-        mutation_func: Callable[[list, float, list], list],
         crossover_func: Callable[[list, float], list],
+        selection_func=None,
         max_it: int = 1000,
         cross_prob: float = 0.01,
         mut_prob: float = 0.01,
@@ -66,8 +77,8 @@ class gaSolver:
         self.population_size = population_size
         self.individual_size = individual_size
         self.possible_genes = possible_genes
-        self.mutation = mutation_func
         self.crossover = crossover_func
+        self.selection = selection_func
 
     def get_parameters(self):
         return {
@@ -81,12 +92,7 @@ class gaSolver:
     def init_population(self):
         population = []
         for _ in range(self.population_size):
-            population.append(
-                "".join(
-                    random.choice(self.possible_genes)
-                    for _ in range(self.individual_size)
-                )
-            )
+            population.append(Individual(self.individual_size, self.possible_genes))
         return population
 
     def evaluation(self, cost_func, population):
@@ -100,34 +106,13 @@ class gaSolver:
         best_id = scores.index(max(scores))
         return population[best_id], scores[best_id]
 
-    def selection(self, population, scores, scaling_const=0):
-        intervals_prob = []
-        new_population = []
-        last_score = 0
+    def mutation(self):
+        for individual in self.population:
+            individual.mutate(self.mut_prob)
 
-        for score in scores:
-            intervals_prob.append(score + scaling_const + last_score)
-            last_score += score + scaling_const
-
-        for _ in range(len(population)):
-            drawn_num = random.randint(0, last_score)
-            left_end = intervals_prob[0]
-
-            if drawn_num <= left_end:
-                new_population.append(population[0])
-
-            else:
-                for i in range(1, len(population)):
-                    if drawn_num > left_end and drawn_num <= intervals_prob[i]:
-                        new_population.append(population[i])
-                        break
-                    left_end = intervals_prob[i]
-
-        return new_population
-
-    def solve(self, problem, pop0, scaling_const=0):
-        best_scores = []
-        avg_hist = []
+    def solve(self, problem, pop0=None, scaling_const=0, additional_functions=[]):
+        if pop0 is None:
+            pop0 = self.init_population()
 
         scores = self.evaluation(problem, pop0)
         best_individual, best_score = self.find_best(pop0, scores)
@@ -135,12 +120,11 @@ class gaSolver:
 
         for _ in range(self.max_it):
             selected = self.selection(population, scores, scaling_const)
-            mutated = self.mutation(
-                self.crossover(selected, self.cross_prob),
-                self.mut_prob,
-                self.possible_genes,
-            )
+            self.mutation(self.crossover(selected, self.cross_prob))
+
             scores = self.evaluation(problem, mutated)
+            for func in additional_functions:
+                mutated = func(mutated)
 
             new_best_individual, new_best_score = self.find_best(mutated, scores)
             if new_best_score > best_score:
