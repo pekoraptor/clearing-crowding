@@ -4,6 +4,7 @@ from clearing import clearing
 from crowding import crowding
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import copy
 import pandas as pd
 
@@ -132,6 +133,33 @@ def plt_multiple_plots_side_by_side(data_arr, labels, titles):
     plt.show()
 
 
+def average_results(n):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            all_diversities = []
+            all_averages = []
+            all_best_scores = []
+
+            for _ in range(n):
+                diversities, averages, best_scores, best_individuals = func(
+                    *args, **kwargs
+                )
+                all_diversities.append(diversities)
+                all_averages.append(averages)
+                all_best_scores.append(best_scores)
+
+            avg_diversities = np.mean(all_diversities, axis=0)
+            avg_averages = np.mean(all_averages, axis=0)
+            avg_best_scores = np.mean(all_best_scores, axis=0)
+
+            return avg_diversities, avg_averages, avg_best_scores, best_individuals
+
+        return wrapper
+
+    return decorator
+
+
+@average_results(n=10)
 def compare_evolutionary_parameter(
     problem,
     parameter_values,
@@ -165,6 +193,7 @@ def compare_evolutionary_parameter(
                 pop0=copy.deepcopy(population),
                 is_measuring_diversity=True,
                 is_measuring_avg=True,
+                is_measuring_best=True,
             )
         )
 
@@ -215,3 +244,80 @@ def table_compare_best(individual_list, labels):
         }
     df = pd.DataFrame(table_data, index=["x", "y", "score"])
     return df
+
+
+def plt_heatmap_animation(
+    func, ax, additionalPoints=None, pltCmap="viridis", visibility=1
+):
+    x1 = np.linspace(-10, 10, 1000)
+    x2 = np.linspace(-10, 10, 1000)
+    x1, x2 = np.meshgrid(x1, x2)
+
+    z = np.zeros_like(x1)
+    for i in range(x1.shape[0]):
+        for j in range(x1.shape[1]):
+            point = [x1[i, j], x2[i, j]]
+            z[i, j] = func(point)
+
+    # Plot the heatmap
+    heatmap = ax.pcolormesh(x1, x2, z, cmap=pltCmap, shading="auto", alpha=visibility)
+
+    # Add a colorbar
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.set_title("Top down view of f(x1, x2)")
+    return heatmap
+
+
+def animate_genetic_algo(path, func):
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    # Draw the heatmap
+    plt_heatmap_animation(func, ax)
+
+    # Initialize the scatter plot for individuals
+    scatter = ax.scatter([], [], c="red", s=8, marker="o")
+
+    # Update function for each frame in the animation
+    def update(frame):
+        positions = path[frame]
+        x = [p[0] for p in positions]
+        y = [p[1] for p in positions]
+        scatter.set_offsets(np.c_[x, y])  # Update scatter positions
+        ax.set_title(f"Generation {frame + 1}")
+        return (scatter,)  # Note the comma! This is important
+
+    # Create and return the animation
+    anim = animation.FuncAnimation(
+        fig,
+        update,
+        frames=len(path),
+        interval=1000 / 120,
+        repeat=False,
+        blit=True,  # Add this for better performance
+    )
+
+    plt.close()  # Prevent display of duplicate figure
+    return anim
+
+
+def generate_animation(problem, title, func=None):
+    ga = gaSolver(population_size=100, possible_genes=[-10, 10])
+    ga.solve(
+        problem,
+        crowding_func=(
+            func
+            if func and func.__name__ in ["crowding", "clearing_crowding"]
+            else None
+        ),
+        clearing_func=(
+            func
+            if func and func.__name__ in ["clearing", "clearing_crowding"]
+            else None
+        ),
+        is_saving_path=True,
+    )
+    ani = animate_genetic_algo(ga.path, problem)
+    plt.show()
+
+    ani.save(title + ".gif", writer="pillow")
