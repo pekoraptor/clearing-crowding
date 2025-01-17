@@ -32,7 +32,6 @@ def plt_function(f, ax, width=10, additionalPoints=None, colors=None):
     ax.set_ylabel("y")
     ax.set_title("Plot of f(x)")
     ax.grid(True)
-    ax.legend()
 
 
 def plt_function3D(
