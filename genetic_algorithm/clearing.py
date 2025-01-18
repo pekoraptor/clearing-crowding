@@ -3,7 +3,7 @@ import numpy as np
 
 def clearing(
     population: list,
-    clearing_radius: float = 2,
+    clearing_radius: float = 1,
     niche_capacity: int = 3,
     cleared_score=10000,
 ):

@@ -3,7 +3,7 @@ import random
 import copy
 
 
-def crowding(offspring, population, cf_size=3, distance_threshold=1):
+def crowding(offspring, population, cf_size=3, distance_threshold=0.2):
     closest_individual = None
     min_distance = float("inf")
     selected_individuals = random.sample(population, k=cf_size)
