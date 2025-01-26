@@ -216,9 +216,9 @@ def compare_evolutionary_parameter(
     return diversities, averages, best_scores, best_individuals
 
 
-@average_results(n=2, track_best_individuals=False)
-def compare_diversity_best(problem):
-    ga = gaSolver()
+@average_results(n=10, track_best_individuals=False)
+def compare_diversity_best(problem, n_dims=2):
+    ga = gaSolver(individual_size=n_dims)
     pop0 = ga.init_population()
 
     ga.solve(
